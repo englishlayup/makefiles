@@ -1,6 +1,14 @@
 SHELL := $(shell which bash)
 GIT_ROOT := $(shell git rev-parse --show-toplevel)
 TOOLS_HOME := $(GIT_ROOT)/.tools
+HOST_OS := $(shell uname -s | tr A-Z a-z)
+HOST_ARCH := $(shell uname -m | sed -e 's/^x86_64$$/amd64/' -e 's/^aarch64$$/arm64/')
+ifneq ($(filter $(HOST_OS),linux darwin),$(HOST_OS))
+$(error Unsupported host OS: $(HOST_OS))
+endif
+ifneq ($(filter $(HOST_ARCH),amd64 arm64),$(HOST_ARCH))
+$(error Unsupported host architecture: $(HOST_ARCH))
+endif
 VIRTUAL_ENV := $(TOOLS_HOME)/venv
 GIT_PRE_COMMIT := $(GIT_ROOT)/.git/hooks/pre-commit
 
@@ -12,7 +20,7 @@ endif
 
 .PHONY: help
 help: ## Show this help message
-	@grep -hE '^[%0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+	grep -hE '^[%0-9a-zA-Z_/-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 # ============================================================================
 # Python/uv setup for pre-commit hooks
@@ -22,7 +30,15 @@ CURL := $(shell which curl)
 $(CURL):
 	$(error 'curl' could not be found on PATH. Please install curl)
 
-UV_ARCH := $(shell uname -m | sed 's/arm64/aarch64-apple-darwin/g' | sed 's/x86_64/x86_64-unknown-linux-gnu/g')
+ifeq ($(HOST_OS)/$(HOST_ARCH),linux/amd64)
+UV_ARCH := x86_64-unknown-linux-gnu
+else ifeq ($(HOST_OS)/$(HOST_ARCH),linux/arm64)
+UV_ARCH := aarch64-unknown-linux-gnu
+else ifeq ($(HOST_OS)/$(HOST_ARCH),darwin/amd64)
+UV_ARCH := x86_64-apple-darwin
+else ifeq ($(HOST_OS)/$(HOST_ARCH),darwin/arm64)
+UV_ARCH := aarch64-apple-darwin
+endif
 UV_VERSION := 0.9.22
 UV_ROOT := $(TOOLS_HOME)/uv-$(UV_VERSION)
 UV := $(UV_ROOT)/uv-$(UV_ARCH)/uv
@@ -59,7 +75,7 @@ pre-commit: hooks ## Run pre-commit checks
 	$(VIRTUAL_ENV)/bin/pre-commit run --all-files
 
 .PHONY: build
-build: hooks ## Entry point
+build: hooks
 
 # ============================================================================
 # Cleanup
@@ -69,5 +85,4 @@ build: hooks ## Entry point
 clean: ## Remove build artifacts and tools
 	echo "Cleaning up root..."
 	rm -rf $(TOOLS_HOME)
-	$(MAKE) -C image clean
 	echo "✓ Cleanup complete"

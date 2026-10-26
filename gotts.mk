@@ -1,3 +1,9 @@
+# My web stack:
+#  - Go: backend
+#  - Templ & Templui: Frontend templating
+#  - Tailwind: Frontend styling
+#  - SQLite: Database
+
 include $(dir $(lastword $(MAKEFILE_LIST)))go.mk
 
 TEMPL_VERSION ?= v0.3.1020

@@ -2,6 +2,7 @@ ZIG_VERSION ?= 0.17.0
 CMAKE_VERSION ?= 4.4.4
 NINJA_VERSION ?= 1.13.2
 CLANG_FORMAT_VERSION ?= 23.1.3
+MUNIT_VERSION ?= fbbdf1467eb0d04a6ee465def2e529e4c87f2118
 
 BUILD_TYPE ?= Debug
 BUILD_DIR ?= $(CURDIR)/build/$(BUILD_TYPE)
@@ -64,6 +65,9 @@ CMAKE := $(CMAKE_ROOT)/bin/cmake
 CTEST := $(CMAKE_ROOT)/bin/ctest
 NINJA := $(NINJA_ROOT)/bin/ninja
 CLANG_FORMAT := $(CLANG_FORMAT_ROOT)/bin/clang-format
+MUNIT_ROOT := $(TOOLS_HOME)/munit-$(MUNIT_VERSION)
+MUNIT_STAMP := $(MUNIT_ROOT)/.installed
+MUNIT_C := $(MUNIT_ROOT)/munit.c
 
 define uv-install-tool
 $(1)/.installed: | $(UV)
@@ -85,11 +89,21 @@ $(NINJA): $(NINJA_STAMP)
 $(CLANG_FORMAT): $(CLANG_FORMAT_STAMP)
 	test -x "$@"
 
-$(BUILD_DIR)/build.ninja: $(CMAKE_STAMP) $(NINJA_STAMP) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB)
+$(MUNIT_STAMP): | $(CURL)
+	set -e -o pipefail; "$(MKDIR)" -p "$(TOOLS_HOME)"; \
+	tmp=$$("$(MKTEMP)" -d "$(TOOLS_HOME)/.munit-install.XXXXXX"); trap '"$(RM)" -rf "$$tmp"' EXIT; \
+	"$(CURL)" -fsSL "https://raw.githubusercontent.com/nemequ/munit/$(MUNIT_VERSION)/munit.h" -o "$$tmp/munit.h"; \
+	"$(CURL)" -fsSL "https://raw.githubusercontent.com/nemequ/munit/$(MUNIT_VERSION)/munit.c" -o "$$tmp/munit.c"; \
+	test -s "$$tmp/munit.h"; test -s "$$tmp/munit.c"; \
+	"$(TOUCH)" "$$tmp/.installed"; \
+	"$(RM)" -rf "$(MUNIT_ROOT)"; "$(MV)" "$$tmp" "$(MUNIT_ROOT)"
+
+$(BUILD_DIR)/build.ninja: $(CMAKE_STAMP) $(NINJA_STAMP) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB) $(MUNIT_STAMP)
 	set -e -o pipefail; "$(CMAKE)" -S "$(CURDIR)" -B "$(BUILD_DIR)" -G Ninja \
 		-DCMAKE_MAKE_PROGRAM="$(NINJA)" -DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DCMAKE_C_COMPILER="$(ZIG_CC)" -DCMAKE_AR="$(ZIG_AR)" -DCMAKE_RANLIB="$(ZIG_RANLIB)" \
+		-DMUNIT_INCLUDE_DIR="$(MUNIT_ROOT)" -DMUNIT_SOURCE="$(MUNIT_C)" \
 		$(CMAKE_ARGS)
 
 .PHONY: configure
@@ -116,4 +130,4 @@ format/check: $(CLANG_FORMAT) ## Check C source formatting
 	for f in $$($(GIT) ls-files '*.c' '*.h'); do "$(CLANG_FORMAT)" --dry-run --Werror "$$f" || exit 1; done
 
 .PHONY: tools/install
-tools/install: $(ZIG) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB) $(CMAKE_STAMP) $(NINJA_STAMP) $(CLANG_FORMAT_STAMP) ## Install repository-local C tools
+tools/install: $(ZIG) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB) $(CMAKE_STAMP) $(NINJA_STAMP) $(CLANG_FORMAT_STAMP) $(MUNIT_STAMP) ## Install repository-local C tools

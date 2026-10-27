@@ -7,6 +7,10 @@ MUNIT_VERSION ?= fbbdf1467eb0d04a6ee465def2e529e4c87f2118
 BUILD_TYPE ?= Debug
 BUILD_DIR ?= $(CURDIR)/build/$(BUILD_TYPE)
 CMAKE_ARGS ?=
+APP_NAME ?= $(notdir $(CURDIR))
+RUN_ARGS ?=
+
+.DEFAULT_GOAL := run
 
 MKDIR := $(shell command -v mkdir)
 MKTEMP := $(shell command -v mktemp)
@@ -108,6 +112,10 @@ $(BUILD_DIR)/build.ninja: $(CMAKE_STAMP) $(NINJA_STAMP) $(ZIG_CC) $(ZIG_AR) $(ZI
 
 .PHONY: configure
 configure: $(BUILD_DIR)/build.ninja ## Configure the CMake project
+
+.PHONY: run
+run: build ## Build and run the application
+	"$(BUILD_DIR)/$(APP_NAME)" $(RUN_ARGS)
 
 .PHONY: build
 build: configure ## Build the CMake project

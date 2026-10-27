@@ -74,9 +74,6 @@ hooks: $(GIT_PRE_COMMIT) ## Install pre-commit hooks
 pre-commit: hooks ## Run pre-commit checks
 	$(VIRTUAL_ENV)/bin/pre-commit run --all-files
 
-.PHONY: build
-build: hooks
-
 # ============================================================================
 # Cleanup
 # ============================================================================

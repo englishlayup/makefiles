@@ -1,4 +1,4 @@
-SHELL := $(shell which bash)
+SHELL := $(shell command -v bash)
 GIT_ROOT := $(shell git rev-parse --show-toplevel)
 TOOLS_HOME := $(GIT_ROOT)/.tools
 HOST_OS := $(shell uname -s | tr A-Z a-z)
@@ -26,7 +26,7 @@ help: ## Show this help message
 # Python/uv setup for pre-commit hooks
 # ============================================================================
 
-CURL := $(shell which curl)
+CURL := $(shell command -v curl)
 $(CURL):
 	$(error 'curl' could not be found on PATH. Please install curl)
 

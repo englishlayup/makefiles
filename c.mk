@@ -1,3 +1,5 @@
+include $(dir $(lastword $(MAKEFILE_LIST)))base.mk
+
 ZIG_VERSION ?= 0.17.0
 CMAKE_VERSION ?= 4.4.4
 NINJA_VERSION ?= 1.13.2
@@ -69,9 +71,7 @@ CMAKE := $(CMAKE_ROOT)/bin/cmake
 CTEST := $(CMAKE_ROOT)/bin/ctest
 NINJA := $(NINJA_ROOT)/bin/ninja
 CLANG_FORMAT := $(CLANG_FORMAT_ROOT)/bin/clang-format
-MUNIT_ROOT := $(TOOLS_HOME)/munit-$(MUNIT_VERSION)
-MUNIT_STAMP := $(MUNIT_ROOT)/.installed
-MUNIT_C := $(MUNIT_ROOT)/munit.c
+MUNIT_ROOT := $(CURDIR)/munit
 
 define uv-install-tool
 $(1)/.installed: | $(UV)
@@ -93,21 +93,20 @@ $(NINJA): $(NINJA_STAMP)
 $(CLANG_FORMAT): $(CLANG_FORMAT_STAMP)
 	test -x "$@"
 
-$(MUNIT_STAMP): | $(CURL)
+MUNIT_FILES := $(MUNIT_ROOT)/munit.c $(MUNIT_ROOT)/munit.h
+$(MUNIT_FILES) &: | $(CURL)
 	set -e -o pipefail; "$(MKDIR)" -p "$(TOOLS_HOME)"; \
 	tmp=$$("$(MKTEMP)" -d "$(TOOLS_HOME)/.munit-install.XXXXXX"); trap '"$(RM)" -rf "$$tmp"' EXIT; \
 	"$(CURL)" -fsSL "https://raw.githubusercontent.com/nemequ/munit/$(MUNIT_VERSION)/munit.h" -o "$$tmp/munit.h"; \
 	"$(CURL)" -fsSL "https://raw.githubusercontent.com/nemequ/munit/$(MUNIT_VERSION)/munit.c" -o "$$tmp/munit.c"; \
 	test -s "$$tmp/munit.h"; test -s "$$tmp/munit.c"; \
-	"$(TOUCH)" "$$tmp/.installed"; \
 	"$(RM)" -rf "$(MUNIT_ROOT)"; "$(MV)" "$$tmp" "$(MUNIT_ROOT)"
 
-$(BUILD_DIR)/build.ninja: $(CMAKE_STAMP) $(NINJA_STAMP) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB) $(MUNIT_STAMP)
+$(BUILD_DIR)/build.ninja: $(CMAKE_STAMP) $(NINJA_STAMP) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB)
 	set -e -o pipefail; "$(CMAKE)" -S "$(CURDIR)" -B "$(BUILD_DIR)" -G Ninja \
 		-DCMAKE_MAKE_PROGRAM="$(NINJA)" -DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		-DCMAKE_C_COMPILER="$(ZIG_CC)" -DCMAKE_AR="$(ZIG_AR)" -DCMAKE_RANLIB="$(ZIG_RANLIB)" \
-		-DMUNIT_INCLUDE_DIR="$(MUNIT_ROOT)" -DMUNIT_SOURCE="$(MUNIT_C)" \
 		$(CMAKE_ARGS)
 
 .PHONY: configure
@@ -121,14 +120,6 @@ run: build ## Build and run the application
 build: configure ## Build the CMake project
 	"$(CMAKE)" --build "$(BUILD_DIR)"
 
-.PHONY: test
-test: build $(CTEST) ## Run CMake tests
-	"$(CTEST)" --test-dir "$(BUILD_DIR)" --output-on-failure
-
-.PHONY: test/full
-test/full: build $(CTEST) ## Run CMake tests shuffled and repeated
-	"$(CTEST)" --test-dir "$(BUILD_DIR)" --output-on-failure --schedule-random --repeat until-fail:2 --timeout 60
-
 .PHONY: format
 format: $(CLANG_FORMAT) ## Format C source files
 	for f in $$($(GIT) ls-files '*.c' '*.h'); do "$(CLANG_FORMAT)" -i "$$f" || exit 1; done
@@ -138,4 +129,7 @@ format/check: $(CLANG_FORMAT) ## Check C source formatting
 	for f in $$($(GIT) ls-files '*.c' '*.h'); do "$(CLANG_FORMAT)" --dry-run --Werror "$$f" || exit 1; done
 
 .PHONY: tools/install
-tools/install: $(ZIG) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB) $(CMAKE_STAMP) $(NINJA_STAMP) $(CLANG_FORMAT_STAMP) $(MUNIT_STAMP) ## Install repository-local C tools
+tools/install: $(ZIG) $(ZIG_CC) $(ZIG_AR) $(ZIG_RANLIB) $(CMAKE_STAMP) $(NINJA_STAMP) $(CLANG_FORMAT_STAMP) ## Install repository-local C tools
+
+.PHONY: munit/install
+munit/install: $(MUNIT_FILES) ## Install munit

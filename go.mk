@@ -1,3 +1,5 @@
+include $(dir $(lastword $(MAKEFILE_LIST)))base.mk
+
 GO_VERSION ?= 1.26.1
 GO_ROOT := $(TOOLS_HOME)/go-$(GO_VERSION)
 GO := $(GO_ROOT)/bin/go
